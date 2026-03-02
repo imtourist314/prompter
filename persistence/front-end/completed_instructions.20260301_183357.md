@@ -1,1 +1,0 @@
-Make the Cancel button red, the Submit button green

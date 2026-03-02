@@ -1,2 +1,0 @@
-- Change the colour theme of the web-page to be a neutral grey, however keep the colour theme for the text boxes the same
-- Above the completed_instructions text box but the exact name of the file that was used.  
