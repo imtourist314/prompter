@@ -41,7 +41,7 @@ if ! git remote get-url "$REMOTE" >/dev/null 2>&1; then
   exit 1
 fi
 
-TS="$(date +"%Y%m%d_%H")"
+TS="$(date +"%Y%m%d_%H%M%S")"
 BRANCH="llm_enhanced_${TS}"
 
 PR_TITLE="${PR_TITLE-LLM enhanced changes ${TS}}"
