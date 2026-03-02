@@ -69,12 +69,12 @@ def write_text(path: str, text: str) -> None:
         f.write(text)
 
 
-def fetch_files(base_url: str, area: str, timeout_s: int = 10) -> Dict[str, str]:
+def fetch_files(base_url: str, project: str, area: str, timeout_s: int = 10) -> Dict[str, str]:
     base_url = base_url.rstrip("/")
     out: Dict[str, str] = {}
 
     for name in FILES:
-        url = f"{base_url}/api/instructions/{area}/{name}"
+        url = f"{base_url}/api/instructions/{project}/{area}/{name}"
         resp = requests.get(url, timeout=timeout_s)
         resp.raise_for_status()
         out[name] = resp.text
@@ -144,6 +144,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Prompter API base URL (default: http://localhost:3050). Can also set PROMPTER_BASE_URL.",
     )
     p.add_argument(
+        "--project",
+        default=os.environ.get("PROMPTER_PROJECT", "default"),
+        help="Project name used for persistence (default: default). Can also set PROMPTER_PROJECT.",
+    )
+    p.add_argument(
         "--interval",
         type=int,
         default=int(os.environ.get("PROMPTER_POLL_INTERVAL", "60")),
@@ -171,15 +176,18 @@ def main(argv: list[str]) -> int:
         return 2
 
     base_url: str = args.base_url
+    project: str = (args.project or "default").strip() or "default"
     interval: int = max(1, int(args.interval))
     out_dir: str = args.output_dir
 
-    print(f"[{_utc_ts()}] Listening for '{area}' on {base_url} (interval={interval}s)")
+    print(
+        f"[{_utc_ts()}] Listening for '{project}/{area}' on {base_url} (interval={interval}s)"
+    )
     print(f"[{_utc_ts()}] Saving files under: {os.path.abspath(out_dir)}/{area}/")
 
     while True:
         try:
-            downloaded = fetch_files(base_url, area)
+            downloaded = fetch_files(base_url, project, area)
             any_changed, per_file = compare_and_write(downloaded, out_dir, area)
 
             if any_changed:
@@ -191,8 +199,8 @@ def main(argv: list[str]) -> int:
             # If instructions.md changed (including first download), trigger pi.
             if per_file.get("instructions.md"):
                 # Prefer the canonical persistence path if present (matches the command:
-                #   pi -p --no-session --tools read,bash,edit,write /persistence/<area>/instructions.md
-                preferred_path = f"/persistence/{area}/instructions.md"
+                #   pi -p --no-session --tools read,bash,edit,write /persistence/<project>/<area>/instructions.md
+                preferred_path = f"/persistence/{project}/{area}/instructions.md"
                 if os.path.exists(preferred_path):
                     instructions_path = preferred_path
                 else:

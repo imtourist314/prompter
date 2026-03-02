@@ -2,7 +2,7 @@
 """Simple smoke tests for the Prompter API read endpoints.
 
 This script tests GET requests against:
-  /api/instructions/<area>/<file>
+  /api/instructions/<project>/<area>/<file>
 
 Examples:
   python api_tester.py --base-url http://localhost:3050 --area testing --file instructions.md
@@ -28,6 +28,7 @@ import requests
 
 
 DEFAULT_BASE_URL = os.environ.get("PROMPTER_BASE_URL", "http://localhost:3050").rstrip("/")
+DEFAULT_PROJECT = (os.environ.get("PROMPTER_PROJECT", "default") or "default").strip() or "default"
 ALLOWED_AREAS = ("front-end", "back-end", "testing")
 ALLOWED_FILES = ("instructions.md", "completed_instructions.md")
 
@@ -65,13 +66,14 @@ def _get_text(url: str, timeout_s: int) -> requests.Response:
 
 def test_read(
     base_url: str,
+    project: str,
     area: str,
     file: str,
     timeout_s: int,
     print_body: bool,
     max_chars: int,
 ) -> TestResult:
-    url = f"{base_url}/api/instructions/{area}/{file}"
+    url = f"{base_url}/api/instructions/{project}/{area}/{file}"
     name = f"GET {url}"
 
     try:
@@ -95,8 +97,8 @@ def test_read(
     return TestResult(name=name, ok=True, detail=f"{len(body)} bytes")
 
 
-def test_invalid_area(base_url: str, timeout_s: int) -> TestResult:
-    url = f"{base_url}/api/instructions/not-a-real-area/instructions.md"
+def test_invalid_area(base_url: str, project: str, timeout_s: int) -> TestResult:
+    url = f"{base_url}/api/instructions/{project}/not-a-real-area/instructions.md"
     name = f"GET invalid area -> 400 ({url})"
 
     try:
@@ -115,8 +117,8 @@ def test_invalid_area(base_url: str, timeout_s: int) -> TestResult:
     return TestResult(name=name, ok=True, detail=resp.text.strip()[:200])
 
 
-def test_invalid_file(base_url: str, timeout_s: int) -> TestResult:
-    url = f"{base_url}/api/instructions/testing/not-allowed.md"
+def test_invalid_file(base_url: str, project: str, timeout_s: int) -> TestResult:
+    url = f"{base_url}/api/instructions/{project}/testing/not-allowed.md"
     name = f"GET invalid file -> 400 ({url})"
 
     try:
@@ -161,6 +163,11 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         help=f"API base URL (default: {DEFAULT_BASE_URL}). Can also set PROMPTER_BASE_URL.",
     )
     p.add_argument(
+        "--project",
+        default=DEFAULT_PROJECT,
+        help=f"Project name (default: {DEFAULT_PROJECT}). Can also set PROMPTER_PROJECT.",
+    )
+    p.add_argument(
         "--area",
         default=None,
         help="Area to fetch (front-end/back-end/testing). If omitted, use --smoke or --all.",
@@ -203,6 +210,7 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
 def main(argv: List[str]) -> int:
     args = parse_args(argv)
     base_url = (args.base_url or "").rstrip("/")
+    project = (args.project or DEFAULT_PROJECT).strip() or DEFAULT_PROJECT
     timeout_s = max(1, int(args.timeout))
 
     results: List[TestResult] = []
@@ -214,6 +222,7 @@ def main(argv: List[str]) -> int:
                     results.append(
                         test_read(
                             base_url,
+                            project,
                             area,
                             file,
                             timeout_s=timeout_s,
@@ -221,8 +230,8 @@ def main(argv: List[str]) -> int:
                             max_chars=args.max_chars,
                         )
                     )
-            results.append(test_invalid_area(base_url, timeout_s=timeout_s))
-            results.append(test_invalid_file(base_url, timeout_s=timeout_s))
+            results.append(test_invalid_area(base_url, project, timeout_s=timeout_s))
+            results.append(test_invalid_file(base_url, project, timeout_s=timeout_s))
             return run_tests(results)
 
         if args.area and args.all:
@@ -231,6 +240,7 @@ def main(argv: List[str]) -> int:
                 results.append(
                     test_read(
                         base_url,
+                        project,
                         area,
                         file,
                         timeout_s=timeout_s,
@@ -251,6 +261,7 @@ def main(argv: List[str]) -> int:
             results.append(
                 test_read(
                     base_url,
+                    project,
                     area,
                     args.file,
                     timeout_s=timeout_s,
