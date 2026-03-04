@@ -268,49 +268,48 @@ watch(
 
 .btn {
   appearance: none;
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
   color: var(--text);
   padding: 10px 12px;
   border-radius: 10px;
   font-size: 13px;
   cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .btn.danger {
-  /* Cancel button (red) */
-  background: rgba(255, 59, 48, 0.22);
-  border-color: rgba(255, 59, 48, 0.75);
+  background: var(--btn-danger-bg);
+  border-color: var(--btn-danger-border);
 }
 
 .btn.danger:hover:not(:disabled) {
-  background: rgba(255, 59, 48, 0.3);
-  border-color: rgba(255, 59, 48, 0.9);
+  background: var(--btn-danger-bg-hover);
+  border-color: var(--btn-danger-border-hover);
 }
 
 .btn.primary {
-  /* Submit button (green) */
-  background: rgba(52, 199, 89, 0.22);
-  border-color: rgba(52, 199, 89, 0.75);
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-border);
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: rgba(52, 199, 89, 0.3);
-  border-color: rgba(52, 199, 89, 0.9);
+  background: var(--btn-primary-bg-hover);
+  border-color: var(--btn-primary-border-hover);
 }
 
 .btn.primary.attention {
-  border-color: rgba(255, 215, 102, 0.95);
-  box-shadow: 0 0 0 3px rgba(255, 215, 102, 0.22);
+  border-color: var(--btn-attention-border);
+  box-shadow: 0 0 0 3px var(--btn-attention-glow);
 }
 
 .error {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid rgba(255, 107, 107, 0.45);
-  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid var(--error-panel-border);
+  background: var(--error-panel-bg);
   border-radius: 10px;
   color: var(--text);
 }
@@ -318,8 +317,8 @@ watch(
 .status {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid rgba(122, 162, 255, 0.35);
-  background: rgba(122, 162, 255, 0.08);
+  border: 1px solid var(--status-border);
+  background: var(--status-bg);
   border-radius: 10px;
   color: var(--muted);
 }

@@ -1,4 +1,2 @@
-Modify the front-end UI and the server API:
-- Enable the server API with an additional function to list all the completed_instruction markdown files for this project and area
-- Add an additional dropdown above the instructions_completed textbox that can list all the completed_instruction markdown files
-- Modify the API test python script to also include new API functions.
+- Generate a PR with all the code change in the code directory and output it to a file generated_pr.md
+- Call the script/llm_create_pr.sh to perform branching and push the changes and the PR to github 

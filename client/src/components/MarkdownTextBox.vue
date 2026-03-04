@@ -55,7 +55,7 @@ watch(
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
-  background: rgba(0,0,0,0.12);
+  background: var(--panel-overlay);
 }
 
 .toolbar {
@@ -64,7 +64,7 @@ watch(
   gap: 10px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  background: rgba(255,255,255,0.03);
+  background: var(--surface-soft);
 }
 
 .title { font-size: 13px; color: var(--muted); }
@@ -112,13 +112,13 @@ watch(
 }
 
 .previewPane :deep(code) {
-  background: rgba(255,255,255,0.08);
+  background: var(--code-inline-bg);
   padding: 0 4px;
   border-radius: 4px;
 }
 
 .previewPane :deep(pre) {
-  background: rgba(0,0,0,0.25);
+  background: var(--code-block-bg);
   padding: 10px;
   border-radius: 8px;
   overflow: auto;
