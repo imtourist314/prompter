@@ -1,3 +1,1 @@
-Modify the front-end interface:
-- Include a dark-mode/light-mode toggle button
-- Change dark-mode theme so that the colours is not as dark
+- Make the size of the textboxes to be 20 rows minimum

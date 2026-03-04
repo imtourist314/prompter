@@ -1,40 +1,14 @@
-# LLM enhanced changes 20260303_214607
+# Adjust Markdown text box height and preview pane
 
 ## Summary
-- Automated PR generated from local changes.
+- Reduce the Markdown editor's minimum height from 40 to 20 rows so prompts are easier to edit on smaller screens.
+- Keep the live preview pane in lockstep with the textarea height so the split view stays balanced.
+- Regenerate the Vite production bundle so the published UI picks up the new sizing defaults.
 
 ## Changes
-```
- .job_listener/front-end/completed_instructions.md |  10 +-
- .job_listener/front-end/instructions.md           |  10 +-
- client/dist/assets/index-BGSZNcYC.js              |  62 ++++++++
- client/dist/assets/index-BKdPZTxc.js              |  62 --------
- client/dist/assets/index-BlDIdQXt.css             |   1 +
- client/dist/assets/index-mAQrwSzH.css             |   1 -
- client/dist/index.html                            |   4 +-
- client/src/App.vue                                | 170 ++++++++++++++++++++-
- client/src/api.js                                 |  46 ++++--
- client/src/components/TabEditor.vue               | 177 ++++++++++++++++++++--
- scripts/api_tester.py                             | 126 ++++++++++++++-
- server/index.js                                   | 165 ++++++++++++++++++++
- 12 files changed, 730 insertions(+), 104 deletions(-)
-```
-
-## Files changed
-```
-.job_listener/front-end/completed_instructions.md
-.job_listener/front-end/instructions.md
-client/dist/assets/index-BGSZNcYC.js
-client/dist/assets/index-BKdPZTxc.js
-client/dist/assets/index-BlDIdQXt.css
-client/dist/assets/index-mAQrwSzH.css
-client/dist/index.html
-client/src/App.vue
-client/src/api.js
-client/src/components/TabEditor.vue
-scripts/api_tester.py
-server/index.js
-```
+- `client/src/components/MarkdownTextBox.vue`: lower the default `rows` attribute and the CSS `min-height` for both the textarea and preview pane.
+- `client/dist/index.html`: reference the freshly-built hashed JS and CSS artifacts.
+- `client/dist/assets/index-*.{js,css}`: updated Vite build output that contains only the sizing tweaks above.
 
 ## Testing
-- Not specified.
+- `cd client && npm run build`
