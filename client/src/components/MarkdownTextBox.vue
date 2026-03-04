@@ -13,7 +13,7 @@
       <textarea
         class="textarea"
         :value="modelValue"
-        rows="40"
+        rows="20"
         @input="$emit('update:modelValue', $event.target.value)"
         spellcheck="false"
       />
@@ -82,9 +82,9 @@ watch(
 
 .textarea {
   width: 100%;
-  /* Minimum of ~40 lines ("40 characters in height") */
-  min-height: calc(40 * 1.35em);
-  min-height: 40lh;
+  /* Minimum of ~20 lines ("20 characters in height") */
+  min-height: calc(20 * 1.35em);
+  min-height: 20lh;
   resize: vertical;
   padding: 12px;
   border: 0;
@@ -99,8 +99,8 @@ watch(
 
 .previewPane {
   padding: 12px;
-  min-height: calc(40 * 1.35em);
-  min-height: 40lh;
+  min-height: calc(20 * 1.35em);
+  min-height: 20lh;
   overflow: auto;
   color: var(--text);
 }
