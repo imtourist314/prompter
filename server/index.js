@@ -23,6 +23,44 @@ const PROJECT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 const ALLOWED_AREAS = new Set(['front-end', 'back-end', 'testing'])
 const ALLOWED_FILES = new Set(['instructions.md', 'completed_instructions.md'])
 
+function listProjects() {
+  const projects = new Set()
+
+  // Ensure the default is always present.
+  projects.add(DEFAULT_PROJECT)
+
+  if (!fs.existsSync(PERSISTENCE_ROOT)) return Array.from(projects).sort()
+
+  for (const name of fs.readdirSync(PERSISTENCE_ROOT)) {
+    // Avoid treating legacy layout area folders as projects.
+    if (ALLOWED_AREAS.has(name)) continue
+    if (!PROJECT_RE.test(name)) continue
+
+    const full = path.join(PERSISTENCE_ROOT, name)
+    let stat
+    try {
+      stat = fs.statSync(full)
+    } catch {
+      continue
+    }
+    if (!stat.isDirectory()) continue
+
+    // Consider it a project if it contains any allowed area folder.
+    let hasArea = false
+    for (const area of ALLOWED_AREAS) {
+      const areaDir = path.join(full, area)
+      if (fs.existsSync(areaDir) && fs.statSync(areaDir).isDirectory()) {
+        hasArea = true
+        break
+      }
+    }
+
+    if (hasArea) projects.add(name)
+  }
+
+  return Array.from(projects).sort()
+}
+
 const COMPLETED_ALIAS = 'completed_instructions.md'
 const COMPLETED_RE = /^completed_instructions\.(\d{8}_\d{6})\.md$/
 
@@ -188,6 +226,88 @@ function handlePut(req, res, next, project, area, file) {
   }
 }
 
+function validateProjectArea(project, area) {
+  validateProject(project)
+  if (!ALLOWED_AREAS.has(area)) {
+    const err = new Error(`Invalid area: ${area}`)
+    err.status = 400
+    throw err
+  }
+}
+
+function listCompletedInstructionFiles(project, area) {
+  const dir = ensureProjectAreaDir(project, area)
+
+  const collect = (d) => {
+    if (!fs.existsSync(d)) return []
+    return fs.readdirSync(d).filter((name) => COMPLETED_RE.test(name))
+  }
+
+  // Prefer new layout, but include legacy files too (deduped).
+  const files = new Set([...collect(dir), ...collect(legacyAreaDir(area))])
+
+  // Sort newest-first (filenames are sortable by timestamp).
+  return Array.from(files).sort().reverse()
+}
+
+function resolveCompletedInstructionPath(project, area, name) {
+  // Allow fetching either the alias or a specific timestamped snapshot.
+  if (name === COMPLETED_ALIAS) return null
+  if (!COMPLETED_RE.test(name)) {
+    const err = new Error(`Invalid completed instruction file: ${name}`)
+    err.status = 400
+    throw err
+  }
+
+  const primary = path.join(ensureProjectAreaDir(project, area), name)
+  if (fs.existsSync(primary)) return primary
+
+  const legacy = path.join(legacyAreaDir(area), name)
+  if (fs.existsSync(legacy)) return legacy
+
+  const err = new Error(`Not found: ${name}`)
+  err.status = 404
+  throw err
+}
+
+// Project-aware endpoints
+app.get('/api/instructions/:project/:area/completed-files', (req, res, next) => {
+  try {
+    const project = getProjectFromRequest(req.params.project)
+    const area = req.params.area
+    validateProjectArea(project, area)
+
+    return res.json({
+      project,
+      area,
+      alias: COMPLETED_ALIAS,
+      files: listCompletedInstructionFiles(project, area)
+    })
+  } catch (e) {
+    next(e)
+  }
+})
+
+app.get('/api/instructions/:project/:area/completed-file/:name', (req, res, next) => {
+  try {
+    const project = getProjectFromRequest(req.params.project)
+    const area = req.params.area
+    const name = req.params.name
+    validateProjectArea(project, area)
+
+    // Alias means "latest".
+    if (name === COMPLETED_ALIAS) {
+      return handleGet(req, res, next, project, area, COMPLETED_ALIAS)
+    }
+
+    const filePath = resolveCompletedInstructionPath(project, area, name)
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+    return res.send(fs.readFileSync(filePath, 'utf8'))
+  } catch (e) {
+    next(e)
+  }
+})
+
 // New endpoint shape (project-aware):
 //   GET http://<servername>:<port>/api/instructions/<project>/<front-end|back-end|testing>/instructions.md
 app.get('/api/instructions/:project/:area/:file', (req, res, next) => {
@@ -201,6 +321,42 @@ app.put('/api/instructions/:project/:area/:file', (req, res, next) => {
 })
 
 // Backward compatible endpoints (no project segment). These route to DEFAULT_PROJECT.
+app.get('/api/instructions/:area/completed-files', (req, res, next) => {
+  try {
+    const project = DEFAULT_PROJECT
+    const area = req.params.area
+    validateProjectArea(project, area)
+
+    return res.json({
+      project,
+      area,
+      alias: COMPLETED_ALIAS,
+      files: listCompletedInstructionFiles(project, area)
+    })
+  } catch (e) {
+    next(e)
+  }
+})
+
+app.get('/api/instructions/:area/completed-file/:name', (req, res, next) => {
+  try {
+    const project = DEFAULT_PROJECT
+    const area = req.params.area
+    const name = req.params.name
+    validateProjectArea(project, area)
+
+    if (name === COMPLETED_ALIAS) {
+      return handleGet(req, res, next, project, area, COMPLETED_ALIAS)
+    }
+
+    const filePath = resolveCompletedInstructionPath(project, area, name)
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+    return res.send(fs.readFileSync(filePath, 'utf8'))
+  } catch (e) {
+    next(e)
+  }
+})
+
 app.get('/api/instructions/:area/:file', (req, res, next) => {
   const { area, file } = req.params
   return handleGet(req, res, next, DEFAULT_PROJECT, area, file)
@@ -209,6 +365,15 @@ app.get('/api/instructions/:area/:file', (req, res, next) => {
 app.put('/api/instructions/:area/:file', (req, res, next) => {
   const { area, file } = req.params
   return handlePut(req, res, next, DEFAULT_PROJECT, area, file)
+})
+
+// List available projects (based on folders found in persistence/).
+app.get('/api/projects', (req, res, next) => {
+  try {
+    return res.json({ projects: listProjects(), defaultProject: DEFAULT_PROJECT })
+  } catch (e) {
+    next(e)
+  }
 })
 
 // Serve the built Vue app (if present). In dev, use Vite.

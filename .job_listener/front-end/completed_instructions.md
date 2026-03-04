@@ -1,6 +1,4 @@
-Create a github shell script which will (into the scripts folder):
-- Create a branch the label like:   llm_enhanced_<YYYYMMDD_HHMMSS> (example:  llm_enhanced_20260301_200422
-- Check current changes into the branch
-- Create a git PR (Pull Request) body into a file called generated_pr.md
-- Perform the github pull request
-- Execute this script that has been generated
+Modify the front-end UI and the server API:
+- Enable the server API with an additional function to list all the completed_instruction markdown files for this project and area
+- Add an additional dropdown above the instructions_completed textbox that can list all the completed_instruction markdown files
+- Modify the API test python script to also include new API functions.

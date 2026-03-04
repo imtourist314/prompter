@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from dataclasses import dataclass
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Tuple
 
 import requests
 
@@ -31,6 +32,7 @@ DEFAULT_BASE_URL = os.environ.get("PROMPTER_BASE_URL", "http://localhost:3050").
 DEFAULT_PROJECT = (os.environ.get("PROMPTER_PROJECT", "default") or "default").strip() or "default"
 ALLOWED_AREAS = ("front-end", "back-end", "testing")
 ALLOWED_FILES = ("instructions.md", "completed_instructions.md")
+COMPLETED_SNAPSHOT_RE = r"^completed_instructions\.\d{8}_\d{6}\.md$"
 
 
 def normalize_area(area: str) -> str:
@@ -64,6 +66,10 @@ def _get_text(url: str, timeout_s: int) -> requests.Response:
     return requests.get(url, timeout=timeout_s)
 
 
+def _get_json(url: str, timeout_s: int) -> requests.Response:
+    return requests.get(url, timeout=timeout_s, headers={"accept": "application/json"})
+
+
 def test_read(
     base_url: str,
     project: str,
@@ -95,6 +101,104 @@ def test_read(
         return TestResult(name=name, ok=True, detail=f"{len(body)} bytes\n---\n{snippet}\n---")
 
     return TestResult(name=name, ok=True, detail=f"{len(body)} bytes")
+
+
+def test_list_completed_files(
+    base_url: str,
+    project: str,
+    area: str,
+    timeout_s: int,
+) -> Tuple[TestResult, List[str]]:
+    url = f"{base_url}/api/instructions/{project}/{area}/completed-files"
+    name = f"GET {url}"
+
+    try:
+        resp = _get_json(url, timeout_s=timeout_s)
+    except requests.RequestException as e:
+        return TestResult(name=name, ok=False, detail=f"request failed: {e}"), []
+
+    if resp.status_code != 200:
+        return (
+            TestResult(name=name, ok=False, detail=f"expected 200, got {resp.status_code}: {resp.text[:200]}"),
+            [],
+        )
+
+    ctype = resp.headers.get("content-type", "")
+    if "application/json" not in ctype:
+        return TestResult(name=name, ok=False, detail=f"expected JSON, got content-type: {ctype!r}"), []
+
+    try:
+        data = resp.json()
+    except ValueError as e:
+        return TestResult(name=name, ok=False, detail=f"invalid JSON: {e}"), []
+
+    files = data.get("files")
+    if not isinstance(files, list):
+        return TestResult(name=name, ok=False, detail=f"expected 'files' list, got: {type(files).__name__}"), []
+
+    bad = [f for f in files if not isinstance(f, str) or not re.match(COMPLETED_SNAPSHOT_RE, f)]
+    if bad:
+        return (
+            TestResult(
+                name=name,
+                ok=False,
+                detail=f"server returned non-snapshot filenames: {bad[:5]}",
+            ),
+            [f for f in files if isinstance(f, str)],
+        )
+
+    return TestResult(name=name, ok=True, detail=f"{len(files)} snapshot file(s)"), files
+
+
+def test_read_completed_snapshot(
+    base_url: str,
+    project: str,
+    area: str,
+    snapshot_name: str,
+    timeout_s: int,
+    print_body: bool,
+    max_chars: int,
+) -> TestResult:
+    url = f"{base_url}/api/instructions/{project}/{area}/completed-file/{snapshot_name}"
+    name = f"GET {url}"
+
+    try:
+        resp = _get_text(url, timeout_s=timeout_s)
+    except requests.RequestException as e:
+        return TestResult(name=name, ok=False, detail=f"request failed: {e}")
+
+    if resp.status_code != 200:
+        return TestResult(name=name, ok=False, detail=f"expected 200, got {resp.status_code}: {resp.text[:200]}")
+
+    ctype = resp.headers.get("content-type", "")
+    if not ctype.startswith("text/markdown"):
+        return TestResult(name=name, ok=False, detail=f"unexpected content-type: {ctype!r}")
+
+    body = resp.text or ""
+    if print_body:
+        snippet = body if len(body) <= max_chars else (body[:max_chars] + "...<truncated>")
+        return TestResult(name=name, ok=True, detail=f"{len(body)} bytes\n---\n{snippet}\n---")
+
+    return TestResult(name=name, ok=True, detail=f"{len(body)} bytes")
+
+
+def test_invalid_completed_snapshot_name(base_url: str, project: str, area: str, timeout_s: int) -> TestResult:
+    url = f"{base_url}/api/instructions/{project}/{area}/completed-file/not-a-real-snapshot.md"
+    name = f"GET invalid completed snapshot name -> 400 ({url})"
+
+    try:
+        resp = _get_text(url, timeout_s=timeout_s)
+    except requests.RequestException as e:
+        return TestResult(name=name, ok=False, detail=f"request failed: {e}")
+
+    if resp.status_code != 400:
+        return TestResult(name=name, ok=False, detail=f"expected 400, got {resp.status_code}: {resp.text[:200]}")
+
+    ctype = resp.headers.get("content-type", "")
+    if "application/json" not in ctype:
+        return TestResult(name=name, ok=False, detail=f"expected JSON error, got content-type: {ctype!r}")
+
+    return TestResult(name=name, ok=True, detail=resp.text.strip()[:200])
 
 
 def test_invalid_area(base_url: str, project: str, timeout_s: int) -> TestResult:
@@ -230,6 +334,26 @@ def main(argv: List[str]) -> int:
                             max_chars=args.max_chars,
                         )
                     )
+
+                list_res, snapshots = test_list_completed_files(base_url, project, area, timeout_s=timeout_s)
+                results.append(list_res)
+
+                # If any snapshots exist, fetch the newest one (list is newest-first on the server).
+                if list_res.ok and snapshots:
+                    results.append(
+                        test_read_completed_snapshot(
+                            base_url,
+                            project,
+                            area,
+                            snapshots[0],
+                            timeout_s=timeout_s,
+                            print_body=args.print_body,
+                            max_chars=args.max_chars,
+                        )
+                    )
+
+                results.append(test_invalid_completed_snapshot_name(base_url, project, area, timeout_s=timeout_s))
+
             results.append(test_invalid_area(base_url, project, timeout_s=timeout_s))
             results.append(test_invalid_file(base_url, project, timeout_s=timeout_s))
             return run_tests(results)
