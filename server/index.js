@@ -64,6 +64,14 @@ function listProjects() {
 const COMPLETED_ALIAS = 'completed_instructions.md'
 const COMPLETED_RE = /^completed_instructions\.(\d{8}_\d{6})\.md$/
 
+function isNonEmptyFile(filePath) {
+  try {
+    return fs.statSync(filePath).size > 0
+  } catch {
+    return false
+  }
+}
+
 function ensureProjectAreaDir(project, area) {
   const dir = path.join(PERSISTENCE_ROOT, project, area)
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -111,11 +119,13 @@ function getLatestCompletedInstructionsPath(project, area) {
     const candidates = fs
       .readdirSync(d)
       .filter((name) => COMPLETED_RE.test(name))
+      .map((name) => ({ name, full: path.join(d, name) }))
+      .filter(({ full }) => isNonEmptyFile(full))
       // Filename format sorts naturally by recency.
-      .sort()
+      .sort((a, b) => a.name.localeCompare(b.name))
 
     if (candidates.length === 0) return null
-    return path.join(d, candidates[candidates.length - 1])
+    return candidates[candidates.length - 1].full
   }
 
   // Prefer the new layout.
@@ -185,10 +195,16 @@ function handleGet(req, res, next, project, area, file) {
 
       // Backward-compatible fallback if only the legacy alias file exists.
       const legacyAlias = path.join(legacyAreaDir(area), COMPLETED_ALIAS)
-      if (fs.existsSync(legacyAlias)) return res.send(fs.readFileSync(legacyAlias, 'utf8'))
+      if (isNonEmptyFile(legacyAlias)) {
+        return res.send(fs.readFileSync(legacyAlias, 'utf8'))
+      }
 
-      const aliasPath = ensureOnDisk(project, area, COMPLETED_ALIAS)
-      return res.send(fs.readFileSync(aliasPath, 'utf8'))
+      const aliasPath = path.join(ensureProjectAreaDir(project, area), COMPLETED_ALIAS)
+      if (isNonEmptyFile(aliasPath)) {
+        return res.send(fs.readFileSync(aliasPath, 'utf8'))
+      }
+
+      return res.status(204).end()
     }
 
     const filePath = ensureOnDisk(project, area, file)
@@ -209,6 +225,22 @@ function handlePut(req, res, next, project, area, file) {
     // We also update completed_instructions.md as a convenience pointer for
     // anything that still reads the "static" filename directly from disk.
     if (file === COMPLETED_ALIAS) {
+      if (body.length === 0) {
+        const aliasPath = path.join(ensureProjectAreaDir(project, area), COMPLETED_ALIAS)
+        const legacyAliasPath = path.join(legacyAreaDir(area), COMPLETED_ALIAS)
+        try {
+          if (fs.existsSync(aliasPath)) fs.unlinkSync(aliasPath)
+        } catch {
+          // Ignore errors removing stale alias files.
+        }
+        try {
+          if (fs.existsSync(legacyAliasPath)) fs.unlinkSync(legacyAliasPath)
+        } catch {
+          // Ignore errors removing stale legacy alias files.
+        }
+        return res.status(204).end()
+      }
+
       const tsPath = getNewCompletedInstructionsPath(project, area)
       fs.writeFileSync(tsPath, body, 'utf8')
 
@@ -236,18 +268,21 @@ function validateProjectArea(project, area) {
 }
 
 function listCompletedInstructionFiles(project, area) {
-  const dir = ensureProjectAreaDir(project, area)
+  const dirs = [ensureProjectAreaDir(project, area), legacyAreaDir(area)]
+  const files = new Map()
 
-  const collect = (d) => {
-    if (!fs.existsSync(d)) return []
-    return fs.readdirSync(d).filter((name) => COMPLETED_RE.test(name))
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue
+    for (const name of fs.readdirSync(dir)) {
+      if (!COMPLETED_RE.test(name)) continue
+      const full = path.join(dir, name)
+      if (!isNonEmptyFile(full)) continue
+      files.set(name, true)
+    }
   }
 
-  // Prefer new layout, but include legacy files too (deduped).
-  const files = new Set([...collect(dir), ...collect(legacyAreaDir(area))])
-
   // Sort newest-first (filenames are sortable by timestamp).
-  return Array.from(files).sort().reverse()
+  return Array.from(files.keys()).sort().reverse()
 }
 
 function resolveCompletedInstructionPath(project, area, name) {
@@ -260,10 +295,10 @@ function resolveCompletedInstructionPath(project, area, name) {
   }
 
   const primary = path.join(ensureProjectAreaDir(project, area), name)
-  if (fs.existsSync(primary)) return primary
+  if (isNonEmptyFile(primary)) return primary
 
   const legacy = path.join(legacyAreaDir(area), name)
-  if (fs.existsSync(legacy)) return legacy
+  if (isNonEmptyFile(legacy)) return legacy
 
   const err = new Error(`Not found: ${name}`)
   err.status = 404

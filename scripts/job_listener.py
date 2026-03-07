@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Poll the Prompter API for new instructions.
+"""Poll the Prompter API for new instructions or send manual updates.
 
 Downloads these files for the given area (front-end/back-end/testing):
   - instructions.md
@@ -8,8 +8,9 @@ Downloads these files for the given area (front-end/back-end/testing):
 It compares remote contents to the last-downloaded local copies and only
 writes to disk when the contents changed.
 
-Example:
+Examples:
   python job_listener.py front-end --base-url http://localhost:3050
+  python job_listener.py front-end --send-file ./new_instructions.md
 """
 
 from __future__ import annotations
@@ -69,6 +70,14 @@ def write_text(path: str, text: str) -> None:
         f.write(text)
 
 
+def read_source_text(source: str) -> Tuple[str, str]:
+    if source == "-":
+        return sys.stdin.read(), "stdin"
+
+    with open(source, "r", encoding="utf-8") as f:
+        return f.read(), os.path.abspath(source)
+
+
 def fetch_files(base_url: str, project: str, area: str, timeout_s: int = 10) -> Dict[str, str]:
     base_url = base_url.rstrip("/")
     out: Dict[str, str] = {}
@@ -80,6 +89,19 @@ def fetch_files(base_url: str, project: str, area: str, timeout_s: int = 10) -> 
         out[name] = resp.text
 
     return out
+
+
+def send_instructions(base_url: str, project: str, area: str, text: str, timeout_s: int = 10) -> None:
+    base_url = base_url.rstrip("/")
+    url = f"{base_url}/api/instructions/{project}/{area}/instructions.md"
+    resp = requests.put(
+        url,
+        data=text or "",
+        headers={"Content-Type": "text/plain; charset=utf-8"},
+        timeout=timeout_s,
+    )
+    resp.raise_for_status()
+
 
 
 def compare_and_write(downloaded: Dict[str, str], out_dir: str, area: str) -> Tuple[bool, Dict[str, bool]]:
@@ -151,13 +173,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--interval",
         type=int,
-        default=int(os.environ.get("PROMPTER_POLL_INTERVAL", "60")),
-        help="Polling interval in seconds (default: 60). Can also set PROMPTER_POLL_INTERVAL.",
+        default=int(os.environ.get("PROMPTER_POLL_INTERVAL", "20")),
+        help="Polling interval in seconds (default: 20). Can also set PROMPTER_POLL_INTERVAL.",
     )
     p.add_argument(
         "--output-dir",
         default=os.environ.get("PROMPTER_OUTPUT_DIR", ".job_listener"),
         help="Where to store downloaded files (default: .job_listener). Can also set PROMPTER_OUTPUT_DIR.",
+    )
+    p.add_argument(
+        "--send-file",
+        metavar="PATH",
+        help="Upload instructions from PATH (or '-' for stdin) and exit after the send completes.",
     )
     p.add_argument(
         "--once",
@@ -179,6 +206,27 @@ def main(argv: list[str]) -> int:
     project: str = (args.project or "default").strip() or "default"
     interval: int = max(1, int(args.interval))
     out_dir: str = args.output_dir
+
+    if args.send_file:
+        try:
+            payload, source_desc = read_source_text(args.send_file)
+        except OSError as e:
+            print(f"[{_utc_ts()}] Failed to read {args.send_file!r}: {e}", file=sys.stderr)
+            return 1
+
+        try:
+            send_instructions(base_url, project, area, payload)
+        except requests.RequestException as e:
+            print(
+                f"[{_utc_ts()}] Failed to send instructions to {project}/{area}: {e}",
+                file=sys.stderr,
+            )
+            return 1
+
+        print(
+            f"[{_utc_ts()}] Sent instructions from {source_desc} to {project}/{area} via {base_url}"
+        )
+        return 0
 
     print(
         f"[{_utc_ts()}] Listening for '{project}/{area}' on {base_url} (interval={interval}s)"

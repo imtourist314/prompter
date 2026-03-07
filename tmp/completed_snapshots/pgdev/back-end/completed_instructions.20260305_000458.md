@@ -1,0 +1,2 @@
+- Create a generated_pr.md Pull Request file for all the changes that have been made
+- Call the git_push.sh script to push the changes and create a PR to the Github repository

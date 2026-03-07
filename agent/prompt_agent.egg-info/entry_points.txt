@@ -1,0 +1,2 @@
+[console_scripts]
+agent-daemon = agent_daemon.daemon:main

@@ -1,0 +1,24 @@
+[project]
+name = "prompt-agent"
+version = "0.1.0"
+description = "AgentAPI FastAPI service and AgentDaemon client for delivering subscription files"
+authors = [{name = "Prompt Agent", email = "dev@example.com"}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]",
+    "pydantic>=2.7",
+    "pydantic-settings",
+    "httpx",
+    "python-dotenv",
+]
+
+[project.scripts]
+agent-daemon = "agent_daemon.daemon:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,1 @@
+- Alter the table 'sample' to also include a new column called 'occupation' of type VARCHAR(255)
