@@ -1,0 +1,2 @@
+- Using the service endpoint which describes the structure of a database: http://localhost:8000/tables/sample/structure
+- For the database table 'sample', update the hibernate mapping and code to reflect any changes to the table, including new or columns or columns which have been removed.

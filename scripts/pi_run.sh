@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_NAME="${PROMPTER_PROJECT:-default}"
+
+instruction_file="${1:-instructions.md}"
 
 pi -p --no-session \
      --tools read,bash,edit,write \
-     "./persistence/${PROJECT_NAME}/front-end/instructions.md"
+     "$instruction_file"

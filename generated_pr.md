@@ -1,14 +1,11 @@
-# Adjust Markdown text box height and preview pane
+# Add AgentAPI/AgentDaemon tooling and project-aware persistence
 
 ## Summary
-- Reduce the Markdown editor's minimum height from 40 to 20 rows so prompts are easier to edit on smaller screens.
-- Keep the live preview pane in lockstep with the textarea height so the split view stays balanced.
-- Regenerate the Vite production bundle so the published UI picks up the new sizing defaults.
-
-## Changes
-- `client/src/components/MarkdownTextBox.vue`: lower the default `rows` attribute and the CSS `min-height` for both the textarea and preview pane.
-- `client/dist/index.html`: reference the freshly-built hashed JS and CSS artifacts.
-- `client/dist/assets/index-*.{js,css}`: updated Vite build output that contains only the sizing tweaks above.
+- **Introduce the `agent/` python package** that encapsulates the new Prompt Agent system: FastAPI service scaffolding (`agent_api`), shared status enums, AgentDaemon CLI, packaging metadata, editable install (`pyproject.toml`, `setup.cfg`), environment templates, and documentation (`README.md`, `prompt_agent.md`, CR1–CR6). A SQLite seed database and helper script (`run_api_server.sh`) are included to simplify local bootstrapping.
+- **AgentAPI (FastAPI + SQLAlchemy)** exposes subscriber CRUD, file publishing, and status lifecycle management backed by PostgreSQL/SQLite. Models enforce JSONB/JSON columns, deduplicate subscriber registrations, normalize status filters, and validate status transitions while persisting timestamps for delivered/run/completed milestones.
+- **AgentDaemon CLI and support modules** handle subscriber registration, periodic polling, publishing, and action execution. It persists config under `~/.agent_daemon`, lists subscribers/files, downloads files into per-project `.agent` folders with timestamped filenames, kicks off `scripts/pi_run.sh`, runs optional follow-up shell actions, and reports `PENDING→DELIVERED→RUNNING→COMPLETED/ERRORED` state changes back to the API.
+- **Server/persistence layer overhaul** adds the concept of projects (`PROMPTER_PROJECT`) to the Express API, reorganizes instructions under `persistence/<project>/<area>/...`, versions every `completed_instructions` save with timestamped snapshots, rejects/cleans up empty files, exposes listing/fetching endpoints for historical snapshots, and maintains backward-compatible routes for legacy clients.
+- **Operational tooling updates**: `scripts/job_listener.py` now understands projects, can upload instructions, triggers `pi` automatically when instructions change, and prefers the canonical `/persistence/<project>/<area>/instructions.md` path when available. `scripts/pi_run.sh` accepts an explicit file argument instead of hardcoding front-end instructions. Repository hygiene was tightened via the updated `.gitignore` and job-listener markdowns documenting the new workflow.
 
 ## Testing
-- `cd client && npm run build`
+- Not run (not requested).

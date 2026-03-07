@@ -1,0 +1,3 @@
+- Alter the "sample" table and add a text column called "occupation"
+- Perform and alter table and don't create a new table
+- Use the psql_local.sh script to execute the SQL script to make the change in the database
