@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint, Index
 from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -38,6 +38,7 @@ class Subscriber(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     project: Mapped[str] = mapped_column(String(128), nullable=False)
     area: Mapped[str] = mapped_column(String(128), nullable=False)
+    component: Mapped[str] = mapped_column(String(128), nullable=False)
     status_filter: Mapped[List[str]] = mapped_column(JSONType, default=lambda: [FileStatus.PENDING.value])
     timestamp_from: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     destination_directory: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
@@ -48,6 +49,13 @@ class Subscriber(Base):
     )
 
     files: Mapped[List[SubscriptionFile]] = relationship(back_populates="subscriber", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("project", "area", "component", "status_filter", name="uq_subscriber_project_area_component_status"),
+        Index("ix_subscriber_project", "project"),
+        Index("ix_subscriber_area", "area"),
+        Index("ix_subscriber_component", "component"),
+    )
 
 
 class SubscriptionFile(Base):
@@ -61,6 +69,7 @@ class SubscriptionFile(Base):
     )
     project: Mapped[str] = mapped_column(String(128), nullable=False)
     area: Mapped[str] = mapped_column(String(128), nullable=False)
+    component: Mapped[str] = mapped_column(String(128), nullable=False)
     file_name: Mapped[str] = mapped_column(String(512), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(512))
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -76,3 +85,9 @@ class SubscriptionFile(Base):
 
     subscriber: Mapped[Subscriber] = relationship(back_populates="files")
 
+    __table_args__ = (
+        Index("ix_subscription_file_project", "project"),
+        Index("ix_subscription_file_area", "area"),
+        Index("ix_subscription_file_component", "component"),
+        Index("ix_subscription_file_subscriber", "subscriber_id"),
+    )

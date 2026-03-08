@@ -4,11 +4,8 @@
   "private": true,
   "description": "Prompter - a small local UI + API for managing LLM instructions",
   "scripts": {
-    "dev": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:server": "nodemon server/index.js",
-    "dev:client": "npm --prefix client run dev",
-    "build": "npm --prefix client run build",
-    "start": "node server/index.js"
+    "dev": "npm --prefix client run dev",
+    "build": "npm --prefix client run build"
   },
   "dependencies": {
     "cors": "^2.8.5",

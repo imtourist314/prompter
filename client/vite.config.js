@@ -1,23 +1,28 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+import { defineConfig, loadEnv } from 'vite';
+import vue from '@vitejs/plugin-vue';
 
 export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  const agentApiTarget = env.VITE_AGENT_API_TARGET || env.VITE_AGENT_API_BASE || 'http://localhost:5333';
+
   return {
     plugins: [vue()],
     server: {
-      port: 5174,
-      strictPort: true,
+      port: Number(env.VITE_DEV_SERVER_PORT || 5173),
+      host: '0.0.0.0',
+      allowedHosts: true,
       proxy: {
-        // Dev convenience: Vue dev server proxies API calls to the Express server.
-        '/api': {
-          target: 'http://localhost:3050',
-          changeOrigin: true
-        }
-      }
+        '/agent-api': {
+          target: agentApiTarget,
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/agent-api/, ''),
+        },
+      },
     },
-    build: {
-      outDir: 'dist',
-      emptyOutDir: true
-    }
-  }
-})
+    preview: {
+      port: Number(env.VITE_PREVIEW_PORT || 4173),
+      host: '0.0.0.0',
+    },
+  };
+});

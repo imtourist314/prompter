@@ -11,6 +11,7 @@ from agent_shared.statuses import FileStatus
 class SubscriberBase(BaseModel):
     project: str = Field(..., min_length=1)
     area: str = Field(..., min_length=1)
+    component: str = Field(..., min_length=1)
     status_filter: List[FileStatus] = Field(default_factory=lambda: [FileStatus.PENDING])
     timestamp_from: Optional[datetime] = None
     destination_directory: Optional[str] = None
@@ -28,16 +29,18 @@ class SubscriberRead(SubscriberBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class SubscriptionFileBase(BaseModel):
     file_name: str
     project: str
     area: str
+    component: str
     description: Optional[str] = None
     content: str
 
 
 class SubscriptionFileCreate(SubscriptionFileBase):
-    pass
+    status: FileStatus = Field(default=FileStatus.PENDING)
 
 
 class SubscriptionFileRead(SubscriptionFileBase):

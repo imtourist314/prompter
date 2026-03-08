@@ -14,6 +14,8 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AgentAPI", version="0.1.0")
 
+INSTRUCTION_COMPLETED_ALIAS = "completed_instructions.md"
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -36,9 +38,32 @@ def create_subscriber(
 def list_subscribers(
     project: Optional[str] = None,
     area: Optional[str] = None,
+    component: Optional[str] = None,
     db: Session = Depends(get_session),
 ):
-    return crud.list_subscribers(db, project, area)
+    return crud.list_subscribers(db, project, area, component)
+
+
+@app.get("/projects", response_model=List[str])
+def list_projects(db: Session = Depends(get_session)):
+    return crud.list_unique_projects(db)
+
+
+@app.get("/areas", response_model=List[str])
+def list_areas(
+    project: Optional[str] = Query(None),
+    db: Session = Depends(get_session),
+):
+    return crud.list_unique_areas(db, project)
+
+
+@app.get("/components", response_model=List[str])
+def list_components(
+    project: Optional[str] = Query(None),
+    area: Optional[str] = Query(None),
+    db: Session = Depends(get_session),
+):
+    return crud.list_unique_components(db, project, area)
 
 
 @app.get("/subscribers/{subscriber_id}", response_model=schemas.SubscriberRead)
@@ -55,7 +80,7 @@ def get_subscriber(subscriber_id: int, db: Session = Depends(get_session)):
 )
 def get_files_for_subscriber(
     subscriber_id: int,
-    statuses: Optional[List[models.FileStatus]] = Query(None, alias="status"),
+    statuses: Optional[List[FileStatus]] = Query(None, alias="status"),
     limit: int = Query(25, gt=0, le=100),
     db: Session = Depends(get_session),
 ):
@@ -75,12 +100,13 @@ def get_files_for_subscriber(
 def list_published_files(
     project: Optional[str] = None,
     area: Optional[str] = None,
+    component: Optional[str] = None,
     subscriber_id: Optional[int] = None,
-    statuses: Optional[List[models.FileStatus]] = Query(None, alias="status"),
+    statuses: Optional[List[FileStatus]] = Query(None, alias="status"),
     limit: int = Query(100, gt=0, le=500),
     db: Session = Depends(get_session),
 ):
-    files = crud.list_subscription_files(db, project, area, subscriber_id, statuses, limit)
+    files = crud.list_subscription_files(db, project, area, component, subscriber_id, statuses, limit)
     return files
 
 

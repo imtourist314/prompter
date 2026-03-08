@@ -89,6 +89,7 @@ def register_subscriber(args: argparse.Namespace) -> None:
     payload = {
         "project": args.project,
         "area": args.area,
+        "component": args.component,
         "status_filter": status_values,
         "timestamp_from": parse_timestamp(args.timestamp_from),
         "destination_directory": str(destination_dir),
@@ -103,6 +104,7 @@ def register_subscriber(args: argparse.Namespace) -> None:
         "subscriber_id": subscriber_id,
         "project": subscriber["project"],
         "area": subscriber["area"],
+        "component": subscriber["component"],
         "directory": payload["destination_directory"],
         "status_filter": payload["status_filter"],
         "refresh_interval": payload["refresh_interval"],
@@ -145,13 +147,24 @@ def publish_file(args: argparse.Namespace) -> None:
         logger.error("Unable to determine publish payload")
         sys.exit(1)
 
+    publish_status: str | None = None
+    if args.status:
+        try:
+            publish_status = FileStatus(args.status.upper()).value
+        except ValueError as exc:
+            logger.error("Invalid status value '%s': %s", args.status, exc)
+            sys.exit(1)
+
     payload = {
         "file_name": file_name,
         "project": args.project,
         "area": args.area,
+        "component": args.component,
         "description": args.description,
         "content": content,
     }
+    if publish_status:
+        payload["status"] = publish_status
     config = load_config()
     api_base = args.api_base or config.get("api_base")
     with AgentApiClient(api_base) as client:
@@ -163,7 +176,7 @@ def list_subscribers_command(args: argparse.Namespace) -> None:
     config = load_config()
     api_base = args.api_base or config.get("api_base")
     with AgentApiClient(api_base) as client:
-        subscribers = client.list_subscribers(args.project, args.area)
+        subscribers = client.list_subscribers(args.project, args.area, args.component)
     if not subscribers:
         logger.info("No subscribers found.")
         return
@@ -175,10 +188,11 @@ def list_subscribers_command(args: argparse.Namespace) -> None:
                 str(subscriber.get("id", "")),
                 str(subscriber.get("project", "")),
                 str(subscriber.get("area", "")),
+                str(subscriber.get("component", "")),
                 ", ".join(str(status) for status in statuses) if statuses else "-",
             ]
         )
-    print_table(["ID", "Project", "Area", "Statuses"], rows)
+    print_table(["ID", "Project", "Area", "Component", "Statuses"], rows)
 
 
 def list_published_files_command(args: argparse.Namespace) -> None:
@@ -192,6 +206,7 @@ def list_published_files_command(args: argparse.Namespace) -> None:
         files = client.list_published_files(
             project=args.project,
             area=args.area,
+            component=args.component,
             subscriber_id=args.subscriber_id,
             statuses=status_filter,
             limit=args.limit,
@@ -207,12 +222,13 @@ def list_published_files_command(args: argparse.Namespace) -> None:
                 str(entry.get("subscriber_id", "")),
                 str(entry.get("project", "")),
                 str(entry.get("area", "")),
+                str(entry.get("component", "")),
                 str(entry.get("file_name", "")),
                 str(entry.get("status", "")),
                 str(entry.get("created_at", "")),
             ]
         )
-    print_table(["ID", "Subscriber", "Project", "Area", "File", "Status", "Created"], rows)
+    print_table(["ID", "Subscriber", "Project", "Area", "Component", "File", "Status", "Created"], rows)
 
 
 def run_loop(args: argparse.Namespace) -> None:
@@ -284,6 +300,7 @@ def handle_file(client: AgentApiClient, subscriber: Dict[str, Any], file_entry: 
         "subscriber_id": subscriber_id,
         "project": subscriber.get("project"),
         "area": subscriber.get("area"),
+        "component": subscriber.get("component"),
         "file_name": file_entry["file_name"],
         "stored_file_name": stored_file_name,
     }
@@ -309,6 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_parser = subparsers.add_parser("register", help="Register a new project subscription")
     register_parser.add_argument("--project", required=True)
     register_parser.add_argument("--area", required=True)
+    register_parser.add_argument("--component", required=True)
     register_parser.add_argument("--directory", required=True, help="Destination directory for delivered files")
     register_parser.add_argument("--status", action="append", help="Status filter (repeatable)")
     register_parser.add_argument("--timestamp-from", dest="timestamp_from", help="ISO timestamp filter")
@@ -323,11 +341,13 @@ def build_parser() -> argparse.ArgumentParser:
     subscribers_parser = subparsers.add_parser("subscribers", help="List registered subscribers")
     subscribers_parser.add_argument("--project", help="Filter by project")
     subscribers_parser.add_argument("--area", help="Filter by area")
+    subscribers_parser.add_argument("--component", help="Filter by component")
     subscribers_parser.set_defaults(func=list_subscribers_command)
 
     files_parser = subparsers.add_parser("files", help="List published files")
     files_parser.add_argument("--project", help="Filter by project")
     files_parser.add_argument("--area", help="Filter by area")
+    files_parser.add_argument("--component", help="Filter by component")
     files_parser.add_argument("--subscriber-id", dest="subscriber_id", type=int, help="Filter by subscriber ID")
     files_parser.add_argument("--status", action="append", help="Status filter (repeatable)")
     files_parser.add_argument("--limit", type=int, default=50, help="Maximum number of files to return")
@@ -342,6 +362,7 @@ def build_parser() -> argparse.ArgumentParser:
     publish_parser = subparsers.add_parser("publish", help="Publish a file via the API")
     publish_parser.add_argument("--project", required=True)
     publish_parser.add_argument("--area", required=True)
+    publish_parser.add_argument("--component", required=True)
     publish_parser.add_argument(
         "--file-name",
         help="Path to a file to upload or explicit file name to store",
@@ -351,6 +372,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Literal text to publish or path to a file whose contents should be sent directly",
     )
     publish_parser.add_argument("--description", default=None)
+    publish_parser.add_argument("--status", help="Initial status to assign (defaults to PENDING)")
     publish_parser.set_defaults(func=publish_file)
 
     return parser

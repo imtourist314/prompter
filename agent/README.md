@@ -38,12 +38,13 @@ uvicorn agent_api.main:app --host 0.0.0.0 --port 5333 --reload
 
 ## Running AgentDaemon
 
-Register a project:
+Register a project subscription (project + area + component):
 
 ```bash
 agent-daemon register \
   --project ACME_Widgets \
   --area front-end \
+  --component code-generation \
   --directory /data/example/project1 \
   --api-base http://localhost:5333
 ```
@@ -54,13 +55,13 @@ Start the daemon loop:
 agent-daemon run --api-base http://localhost:5333
 ```
 
-Inspect configured subscribers (optionally filter by project/area):
+Inspect configured subscribers (optionally filter by project/area/component):
 
 ```bash
 agent-daemon subscribers --api-base http://localhost:5333
 ```
 
-List published files with optional filters (project, area, subscriber, status, limit):
+List published files with optional filters (project, area, component, subscriber, status, limit):
 
 ```bash
 agent-daemon files --status COMPLETED --limit 10 --api-base http://localhost:5333
@@ -75,6 +76,8 @@ curl -X POST http://localhost:5333/files \
     "file_name":"spec.md",
     "project":"ACME_Widgets",
     "area":"front-end",
+    "component":"code-generation",
+    "status":"PENDING",
     "description":"Updated spec",
     "content":"## Notes\n..."
   }'
@@ -88,27 +91,39 @@ text:
 agent-daemon publish \
   --project ACME_Widgets \
   --area front-end \
+  --component code-generation \
   --file-name ./spec.md
 
 # publish inline text; omit --file-name to auto-generate a timestamped name
 agent-daemon publish \
   --project ACME_Widgets \
   --area front-end \
+  --component code-generation \
   --content "## Release notes\n..."
 ```
+
+Include `--status <STATE>` to override the initial lifecycle state (defaults to `PENDING`).
 
 ## API surface (AgentAPI)
 
 | Method & Path | Description |
 |---------------|-------------|
 | `GET /health` | Service heartbeat |
-| `POST /subscribers` | Register a subscriber (project, area, filters, directory) |
-| `GET /subscribers` | List subscribers, optional `project`/`area` filters |
+| `POST /subscribers` | Register a subscriber (project, area, component, filters, directory) |
+| `GET /subscribers` | List subscribers, optional `project`/`area`/`component` filters |
+| `GET /projects` | List unique subscriber projects |
+| `GET /areas?project=...` | List unique subscriber areas (optionally filtered by project) |
+| `GET /components?project=...&area=...` | List unique subscriber components (optionally filtered) |
 | `GET /subscribers/{id}` | Retrieve a single subscriber |
 | `GET /subscribers/{id}/files?status=PENDING&limit=25` | Fetch matching files (defaults to subscriber's status filter) |
-| `GET /files?project=...&status=...` | List published files with optional project/area/subscriber/status filters |
+| `GET /files?project=...&status=...` | List published files with optional project/area/component/subscriber/status filters |
 | `POST /files` | Publish a new file (distributed to all matching subscribers) |
 | `PATCH /files/{id}/status` | Advance a file through the lifecycle |
+| `GET /instruction-documents/projects` | List projects that have stored instruction documents |
+| `GET /instruction-documents/{project}/{area}/{name}` | Fetch the markdown for a specific instruction document |
+| `PUT /instruction-documents/{project}/{area}/{name}` | Create or update an instruction document |
+| `DELETE /instruction-documents/{project}/{area}/{name}` | Remove an instruction document |
+| `GET /instruction-documents/{project}/{area}/completed-files` | List timestamped `completed_instructions.*.md` snapshots for the project/area |
 
 All timestamps are UTC ISO-8601 strings. The database URL comes from `DATABASE_URL` (see `.env.example`).
 
@@ -125,6 +140,7 @@ All timestamps are UTC ISO-8601 strings. The database URL comes from `DATABASE_U
         "subscriber_id": "...",
         "project": "ACME_Widgets",
         "area": "front-end",
+        "component": "code-generation",
         "directory": "/data/example/project1",
         "status_filter": ["PENDING"],
         "actions": ["pi_run.sh gpt-4o {file}"]
@@ -132,7 +148,7 @@ All timestamps are UTC ISO-8601 strings. The database URL comes from `DATABASE_U
     }
   }
   ```
-- Actions are shell command templates. Each receives a `{file}` placeholder plus `{project}`, `{area}`, `{subscriber_id}`, and `{file_name}` in the template context.
+- Actions are shell command templates. Each receives a `{file}` placeholder plus `{project}`, `{area}`, `{component}`, `{subscriber_id}`, and `{file_name}` in the template context.
 
 ## Status lifecycle
 

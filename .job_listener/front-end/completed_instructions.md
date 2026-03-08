@@ -1,1 +1,0 @@
-- Make the size of the textboxes to be 20 rows minimum

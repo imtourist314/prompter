@@ -23,12 +23,15 @@ class AgentApiClient:
         self,
         project: Optional[str] = None,
         area: Optional[str] = None,
+        component: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         params: Dict[str, Any] = {}
         if project:
             params["project"] = project
         if area:
             params["area"] = area
+        if component:
+            params["component"] = component
         resp = self._client.get("/subscribers", params=params or None)
         resp.raise_for_status()
         return resp.json()
@@ -50,6 +53,7 @@ class AgentApiClient:
         self,
         project: Optional[str] = None,
         area: Optional[str] = None,
+        component: Optional[str] = None,
         subscriber_id: Optional[int | str] = None,
         statuses: Optional[Iterable[str]] = None,
         limit: int = 100,
@@ -59,6 +63,8 @@ class AgentApiClient:
             params["project"] = project
         if area:
             params["area"] = area
+        if component:
+            params["component"] = component
         if subscriber_id:
             params["subscriber_id"] = subscriber_id
         if statuses:
@@ -82,6 +88,27 @@ class AgentApiClient:
 
     def publish_file(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         resp = self._client.post("/files", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
+    def list_projects(self) -> List[str]:
+        resp = self._client.get("/projects")
+        resp.raise_for_status()
+        return resp.json()
+
+    def list_areas(self, project: Optional[str] = None) -> List[str]:
+        params = {"project": project} if project else None
+        resp = self._client.get("/areas", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    def list_components(self, project: Optional[str] = None, area: Optional[str] = None) -> List[str]:
+        params: Dict[str, Any] = {}
+        if project:
+            params["project"] = project
+        if area:
+            params["area"] = area
+        resp = self._client.get("/components", params=params or None)
         resp.raise_for_status()
         return resp.json()
 

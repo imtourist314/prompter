@@ -1,11 +1,7 @@
-# Add AgentAPI/AgentDaemon tooling and project-aware persistence
-
-## Summary
-- **Introduce the `agent/` python package** that encapsulates the new Prompt Agent system: FastAPI service scaffolding (`agent_api`), shared status enums, AgentDaemon CLI, packaging metadata, editable install (`pyproject.toml`, `setup.cfg`), environment templates, and documentation (`README.md`, `prompt_agent.md`, CR1–CR6). A SQLite seed database and helper script (`run_api_server.sh`) are included to simplify local bootstrapping.
-- **AgentAPI (FastAPI + SQLAlchemy)** exposes subscriber CRUD, file publishing, and status lifecycle management backed by PostgreSQL/SQLite. Models enforce JSONB/JSON columns, deduplicate subscriber registrations, normalize status filters, and validate status transitions while persisting timestamps for delivered/run/completed milestones.
-- **AgentDaemon CLI and support modules** handle subscriber registration, periodic polling, publishing, and action execution. It persists config under `~/.agent_daemon`, lists subscribers/files, downloads files into per-project `.agent` folders with timestamped filenames, kicks off `scripts/pi_run.sh`, runs optional follow-up shell actions, and reports `PENDING→DELIVERED→RUNNING→COMPLETED/ERRORED` state changes back to the API.
-- **Server/persistence layer overhaul** adds the concept of projects (`PROMPTER_PROJECT`) to the Express API, reorganizes instructions under `persistence/<project>/<area>/...`, versions every `completed_instructions` save with timestamped snapshots, rejects/cleans up empty files, exposes listing/fetching endpoints for historical snapshots, and maintains backward-compatible routes for legacy clients.
-- **Operational tooling updates**: `scripts/job_listener.py` now understands projects, can upload instructions, triggers `pi` automatically when instructions change, and prefers the canonical `/persistence/<project>/<area>/instructions.md` path when available. `scripts/pi_run.sh` accepts an explicit file argument instead of hardcoding front-end instructions. Repository hygiene was tightened via the updated `.gitignore` and job-listener markdowns documenting the new workflow.
+# Summary
+- Extend the FastAPI-backed AgentAPI: promote `component` to a required column on subscribers/files via lightweight boot-time migrations, add supporting schema/CRUD changes, and expose project/area/component metadata plus richer file filters in the public endpoints.
+- Modernize the AgentDaemon CLI/client so every command understands the new component dimension, improves status normalization, surfaces the component through list output/action context, and adds conveniences like inline content publishing and stricter themeable config persistence.
+- Replace the deprecated Express/Vue bundle with a redesigned Vite + Vue 3 Prompter UI that talks directly to AgentAPI (new fetch helper, theme toggle, project/area selectors, component tabs, dual-pane markdown editor with preview toggle, status table modal viewer, and dist assets), alongside fresh design docs and dependency updates.
 
 ## Testing
-- Not run (not requested).
+- `npm --prefix client run build`

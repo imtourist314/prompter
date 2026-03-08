@@ -1,2 +1,0 @@
-- Generate a PR with all the code change in the code directory and output it to a file generated_pr.md
-- Call the script/llm_create_pr.sh to perform branching and push the changes and the PR to github 

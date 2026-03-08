@@ -1,3 +1,0 @@
-- Modify the API so that it does not store any empty completed_instructions files
-- Modify the API sothat it does not return any empty completed_instructions files
-- Move any completed_instructions.YYYYMMDD_HHMMSS.md to the ./tmp directory

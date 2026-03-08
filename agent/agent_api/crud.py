@@ -40,11 +40,12 @@ def create_subscriber(db: Session, payload: SubscriberCreate) -> Subscriber:
         select(Subscriber).where(
             Subscriber.project == payload.project,
             Subscriber.area == payload.area,
+            Subscriber.component == payload.component,
             Subscriber.status_filter == normalized_statuses,
         )
     ).scalar_one_or_none()
     if existing:
-        raise ValueError("Subscriber already exists for this project, area, and status filter")
+        raise ValueError("Subscriber already exists for this project, area, component, and status filter")
 
     payload_data = payload.model_dump()
     payload_data["status_filter"] = normalized_statuses
@@ -56,12 +57,19 @@ def create_subscriber(db: Session, payload: SubscriberCreate) -> Subscriber:
     return subscriber
 
 
-def list_subscribers(db: Session, project: str | None = None, area: str | None = None) -> List[Subscriber]:
+def list_subscribers(
+    db: Session,
+    project: str | None = None,
+    area: str | None = None,
+    component: str | None = None,
+) -> List[Subscriber]:
     stmt = select(Subscriber)
     if project:
         stmt = stmt.where(Subscriber.project == project)
     if area:
         stmt = stmt.where(Subscriber.area == area)
+    if component:
+        stmt = stmt.where(Subscriber.component == component)
     result = db.execute(stmt.order_by(Subscriber.created_at.asc()))
     return list(result.scalars().all())
 
@@ -73,10 +81,17 @@ def get_subscriber(db: Session, subscriber_id: int) -> Subscriber | None:
 def publish_file(db: Session, payload: SubscriptionFileCreate) -> Sequence[SubscriptionFile]:
     now = datetime.utcnow()
     subscribers = db.execute(
-        select(Subscriber).where(and_(Subscriber.project == payload.project, Subscriber.area == payload.area))
+        select(Subscriber).where(
+            and_(
+                Subscriber.project == payload.project,
+                Subscriber.area == payload.area,
+                Subscriber.component == payload.component,
+            )
+        )
     ).scalars().all()
 
     created: list[SubscriptionFile] = []
+    target_status = payload.status or FileStatus.PENDING
     for subscriber in subscribers:
         if subscriber.timestamp_from and now < subscriber.timestamp_from:
             continue
@@ -84,10 +99,11 @@ def publish_file(db: Session, payload: SubscriptionFileCreate) -> Sequence[Subsc
             subscriber_id=subscriber.id,
             project=payload.project,
             area=payload.area,
+            component=payload.component,
             file_name=payload.file_name,
             description=payload.description,
             content=payload.content,
-            status=FileStatus.PENDING,
+            status=target_status,
         )
         db.add(subscription_file)
         created.append(subscription_file)
@@ -117,6 +133,7 @@ def list_subscription_files(
     db: Session,
     project: str | None = None,
     area: str | None = None,
+    component: str | None = None,
     subscriber_id: int | None = None,
     statuses: Iterable[FileStatus] | None = None,
     limit: int = 100,
@@ -126,6 +143,8 @@ def list_subscription_files(
         stmt = stmt.where(SubscriptionFile.project == project)
     if area:
         stmt = stmt.where(SubscriptionFile.area == area)
+    if component:
+        stmt = stmt.where(SubscriptionFile.component == component)
     if subscriber_id:
         stmt = stmt.where(SubscriptionFile.subscriber_id == subscriber_id)
     if statuses:
@@ -133,6 +152,30 @@ def list_subscription_files(
     stmt = stmt.order_by(SubscriptionFile.created_at.desc()).limit(limit)
     result = db.execute(stmt)
     return list(result.scalars().all())
+
+
+def list_unique_projects(db: Session) -> List[str]:
+    stmt = select(Subscriber.project).distinct().order_by(Subscriber.project.asc())
+    return list(db.execute(stmt).scalars().all())
+
+
+def list_unique_areas(db: Session, project: str | None = None) -> List[str]:
+    stmt = select(Subscriber.area).distinct()
+    if project:
+        stmt = stmt.where(Subscriber.project == project)
+    stmt = stmt.order_by(Subscriber.area.asc())
+    return list(db.execute(stmt).scalars().all())
+
+
+def list_unique_components(db: Session, project: str | None = None, area: str | None = None) -> List[str]:
+    stmt = select(Subscriber.component).distinct()
+    if project:
+        stmt = stmt.where(Subscriber.project == project)
+    if area:
+        stmt = stmt.where(Subscriber.area == area)
+    stmt = stmt.order_by(Subscriber.component.asc())
+    return list(db.execute(stmt).scalars().all())
+
 
 def update_file_status(db: Session, file_id: int, new_status: FileStatus, error_message: str | None = None) -> SubscriptionFile:
     file_obj = db.get(SubscriptionFile, file_id)
